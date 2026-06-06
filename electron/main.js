@@ -1,18 +1,19 @@
 /* =========================================================================
    byU 포토부스 키오스크 — Electron 메인 프로세스
    -------------------------------------------------------------------------
-   설치형 프로그램의 진입점입니다. 풀스크린·키오스크 모드로 띄우고
-   app/byU-kiosk.html (자체 완결형 번들)을 로드합니다.
+   · 풀스크린·키오스크 모드로 app/byU-kiosk.html(자체 완결형 번들)을 로드
+   · electron-updater로 GitHub Releases를 확인해 자동 업데이트
    ========================================================================= */
 
-const { app, BrowserWindow, globalShortcut, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, globalShortcut, powerSaveBlocker, dialog } = require('electron');
 const path = require('path');
+const { autoUpdater } = require('electron-updater');
 
-// 키오스크 운영 중 절전/화면 꺼짐 방지
 let psbId = null;
+let mainWindow = null;
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     fullscreen: true,        // 풀스크린으로 시작
     kiosk: true,             // 키오스크 모드 (Alt+Tab/작업표시줄 차단)
     autoHideMenuBar: true,
@@ -20,32 +21,52 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      // 카메라/마이크 등 장치 접근 허용이 필요하면 아래 주석 해제
-      // permissions 은 setPermissionRequestHandler 로 별도 제어
     },
   });
 
-  win.loadFile(path.join(__dirname, 'app', 'byU-kiosk.html'));
+  mainWindow.loadFile(path.join(__dirname, 'app', 'byU-kiosk.html'));
 
-  // (선택) 카메라 등 장치 권한 자동 허용
-  win.webContents.session.setPermissionRequestHandler((wc, permission, cb) => {
-    const allow = ['media', 'camera', 'microphone'];
-    cb(allow.includes(permission));
+  // 카메라 등 장치 권한 자동 허용
+  mainWindow.webContents.session.setPermissionRequestHandler((wc, permission, cb) => {
+    cb(['media', 'camera', 'microphone'].includes(permission));
   });
 
-  return win;
+  return mainWindow;
+}
+
+/* ---------- 자동 업데이트 ---------- */
+function setupAutoUpdate() {
+  if (!app.isPackaged) return;          // 개발 중엔 비활성
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.on('update-available', (info) => {
+    console.log('업데이트 발견:', info.version);
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: '업데이트 준비 완료',
+      message: `새 버전 ${info.version}을(를) 받았습니다.`,
+      detail: '지금 재시작하여 업데이트를 적용할까요?',
+      buttons: ['지금 재시작', '나중에'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then((r) => { if (r.response === 0) autoUpdater.quitAndInstall(); });
+  });
+  autoUpdater.on('error', (err) => { console.error('업데이트 오류:', err); });
+
+  // 시작 시 1회 확인 + 이후 6시간마다 재확인
+  autoUpdater.checkForUpdatesAndNotify();
+  setInterval(() => autoUpdater.checkForUpdatesAndNotify(), 6 * 60 * 60 * 1000);
 }
 
 app.whenReady().then(() => {
   createWindow();
-
-  // 절전 방지 켜기
   psbId = powerSaveBlocker.start('prevent-display-sleep');
+  setupAutoUpdate();
 
-  // 비상 종료 단축키 (운영자 전용) — Ctrl+Shift+Q
-  globalShortcut.register('CommandOrControl+Shift+Q', () => {
-    app.quit();
-  });
+  // 운영자 비상 종료 단축키
+  globalShortcut.register('CommandOrControl+Shift+Q', () => app.quit());
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -53,12 +74,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (psbId !== null && powerSaveBlocker.isStarted(psbId)) {
-    powerSaveBlocker.stop(psbId);
-  }
+  if (psbId !== null && powerSaveBlocker.isStarted(psbId)) powerSaveBlocker.stop(psbId);
   app.quit();
 });
 
-app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
-});
+app.on('will-quit', () => globalShortcut.unregisterAll());
