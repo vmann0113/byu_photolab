@@ -1,10 +1,13 @@
-name: Build Windows Installer
+name: Build & Publish Installer
 
-# 언제 빌드할지: main 브랜치에 코드가 올라오면 자동 실행 + 수동 실행 버튼
+# main 브랜치에 코드가 올라오면 자동 빌드 + 수동 실행 버튼
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: write          # GitHub Release 생성/업로드 권한
 
 jobs:
   build:
@@ -23,11 +26,13 @@ jobs:
         working-directory: electron
         run: npm install
 
-      - name: Build installer
+      - name: Build & publish release
         working-directory: electron
-        run: npm run dist
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload installer
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: byU-PhotoBooth-Setup
