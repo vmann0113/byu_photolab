@@ -1,13 +1,12 @@
 name: Build & Publish Installer
 
-# main 브랜치에 코드가 올라오면 자동 빌드 + 수동 실행 버튼
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
 
 permissions:
-  contents: write          # GitHub Release 생성/업로드 권한
+  contents: write          # Release 생성/업로드 권한
 
 jobs:
   build:
@@ -26,14 +25,26 @@ jobs:
         working-directory: electron
         run: npm install
 
-      - name: Build & publish release
+      - name: Build installer
         working-directory: electron
-        run: npx electron-builder --win --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist
+
+      - name: Read app version
+        id: ver
+        shell: bash
+        run: echo "v=$(node -p "require('./electron/package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: byU-PhotoBooth-Setup
           path: electron/dist/*.exe
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.v }}
+          name: byU 포토부스 v${{ steps.ver.outputs.v }}
+          files: |
+            electron/dist/*.exe
+            electron/dist/latest.yml
