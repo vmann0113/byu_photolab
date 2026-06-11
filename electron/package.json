@@ -1,14 +1,14 @@
 {
   "name": "byu-photobooth-kiosk",
   "productName": "byU 포토부스",
-  "version": "1.0.1",
+  "version": "1.4.0",
   "description": "바이유포토랩 포토부스 키오스크 (설치형)",
   "main": "main.js",
   "author": "byU (바이유포토랩)",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win",
+    "dist": "electron-builder --win --publish never",
     "release": "electron-builder --win --publish always"
   },
   "dependencies": {
@@ -23,6 +23,7 @@
     "productName": "byU 포토부스",
     "files": [
       "main.js",
+      "preload.js",
       "app/**/*"
     ],
     "win": {
@@ -35,7 +36,8 @@
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "byU 포토부스"
+      "shortcutName": "byU 포토부스",
+      "artifactName": "byU-PhotoBooth-Setup.exe"
     },
     "publish": [
       {
